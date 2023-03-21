@@ -12,7 +12,7 @@ d = d.strftime("%m_%d_%H_%M")
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
-    filename=f"poker_{d}.txt",
+    filename=f"./log/poker_{d}.txt",
 )
 logger = logging.getLogger(__name__)
 
