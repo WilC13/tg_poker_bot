@@ -4,6 +4,7 @@ import requests, random, itertools
 from pokereval.card import Card
 from pokereval.hand_evaluator import HandEvaluator
 import logging, datetime
+import configparser
 
 d = datetime.datetime.now()
 d = d.strftime("%m_%d_%H_%M")
@@ -15,10 +16,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# #test
-# API_KEY = "5740654668:AAFlpQVzhuNZWiUdgXEbJrxGVwHI_r4OgxA"
-# wc
-API_KEY = "5724731969:AAED8gEx6KYkG8EObo_EMw2EgmheOLxIMzU"
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+API_KEY = config["TG"]["WC"]
 
 bot = Bot(API_KEY)
 

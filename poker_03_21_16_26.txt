@@ -1,0 +1,4 @@
+2023-03-21 16:26:35,874 - apscheduler.scheduler - INFO - Scheduler started
+2023-03-21 16:26:37,194 - telegram.ext.updater - INFO - Received signal 2 (SIGINT), stopping...
+2023-03-21 16:26:37,194 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2023-03-21 16:26:37,565 - telegram.ext.updater - WARNING - Exiting immediately!
