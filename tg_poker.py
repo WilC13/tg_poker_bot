@@ -59,6 +59,7 @@ class poker_game:
         self.flop_stage = False
         self.turn_stage = False
         self.river_stage = False
+        # self.final_stage = False
 
         self.active_player = []
 
@@ -226,6 +227,7 @@ def pre_flop(update: Update, context: CallbackContext):
     for i in range(1, len(player_pool) + 1):
         for _ in range(2):
             player_pool[i].card.append(game.player_hand())
+        print(f"{player_pool[i]} id", player_pool[i].id)
         send(player_pool[i].id, str(player_pool[i].card))
 
     def _next(but, len=len(player_pool)):
@@ -443,7 +445,7 @@ def check_winner(update: Update, context: CallbackContext) -> bool:
         return True
 
     # After River
-    if game.river_stage == True and game.pot > game.sb + game.bb:
+    if game.river_stage == True and game.active_player.count(False) == 0:
         if len(game.desk) != 5:
             return None
         winner_list = []  # maybe more than one
@@ -530,10 +532,11 @@ def error(update: Update, context: CallbackContext):
 def send(id, text):
     url = f"https://api.telegram.org/bot{API_KEY}/sendMessage"
     params = {
-        "chat_id": id,
+        "chat_id": {id},
         "text": f"You got {text}",
     }
     resp = requests.get(url, params=params)
+    print(resp)
 
 
 def callback_handler(update: Update, context: CallbackContext):
@@ -566,11 +569,11 @@ def callback_handler(update: Update, context: CallbackContext):
     print("query ", query)
 
     if "Check" in query or "Call" in query or "Bet" in query or "Fold" in query:
-        game.active_player[cur_option_pos - 1] = (
-            True
-            if game.active_player[cur_option_pos - 1] != None
-            else game.active_player[cur_option_pos - 1]
-        )
+        # game.active_player[cur_option_pos - 1] = (
+        #     True
+        #     if game.active_player[cur_option_pos - 1] != None
+        #     else game.active_player[cur_option_pos - 1]
+        # )
 
         opt = None
 
