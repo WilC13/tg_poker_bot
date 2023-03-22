@@ -41,7 +41,7 @@ print(bot.get_me())
 
 
 class poker_game:
-    def __init__(self, sb=50, bb=100) -> None:
+    def __init__(self, sb=10, bb=20) -> None:
 
         self.a = ["♠️", "♣️", "♥️", "♦️"]
         self.b = [2, 3, 4, 5, 6, 7, 8, 9, 10, "J", "Q", "K", "A"]
@@ -159,8 +159,8 @@ def poker(update: Update, context: CallbackContext):
     l = len(temp)
     if l > 0:
         if l == 2 and temp[0].isdigit() and temp[1].isdigit():
-            game.sb = temp[0]
-            game.bb = temp[1]
+            game.sb = int(temp[0])
+            game.bb = int(temp[1])
         else:
             update.message.reply_text("Must have two Blind\n e.g. /poker 50 100")
             return None
@@ -172,6 +172,7 @@ def poker(update: Update, context: CallbackContext):
         [
             InlineKeyboardButton("Buy in 100BB", callback_data="100BB"),
             InlineKeyboardButton("Buy in 200BB", callback_data="200BB"),
+            InlineKeyboardButton("Buy in 300BB", callback_data="300BB"),
         ],
     ]
     markup = InlineKeyboardMarkup(kb)
@@ -274,7 +275,7 @@ def flop(update: Update, context: CallbackContext):
     game.flop()
     context.bot.send_message(chat_id=chat_id, text=f"{game.desk}")
     cur_option_pos = sb_pos
-    reactive_player(False)
+    reactive_player()
     option(update, context)
 
 
@@ -287,7 +288,7 @@ def turn(update: Update, context: CallbackContext):
     game.turn()
     context.bot.send_message(chat_id=chat_id, text=f"{game.desk}")
     cur_option_pos = sb_pos
-    reactive_player(False)
+    reactive_player()
     option(update, context)
 
 
@@ -300,7 +301,7 @@ def river(update: Update, context: CallbackContext):
     game.river()
     context.bot.send_message(chat_id=chat_id, text=f"{game.desk}")
     cur_option_pos = sb_pos
-    reactive_player(False)
+    reactive_player()
     option(update, context)
 
 
@@ -322,7 +323,6 @@ def option(update: Update, context: CallbackContext):
         [
             InlineKeyboardButton("Check", callback_data="Check"),
             InlineKeyboardButton("Bet", callback_data="Bet"),
-            InlineKeyboardButton("Fold", callback_data="Fold"),
         ],
     ]
     no_check_option_kb = [
@@ -412,8 +412,9 @@ def call():
 
 
 # @actioned
-def fold(update, context):
-    game.active_player[cur_option_pos - 1] = None
+# def fold(update, context):
+#     print(cur_option_pos)
+#     game.active_player[cur_option_pos - 1] = None
 
 
 # sup func
@@ -505,14 +506,13 @@ def player_list() -> str:
     return st
 
 
-def reactive_player(cur_included=True):
+def reactive_player():
     global game
     for i in range(len(game.active_player)):
         if game.active_player[i] == None:
             continue
         elif game.active_player[i] == True:
             game.active_player[i] = False
-    game.active_player[cur_option_pos - 1] = cur_included
     print("player reactive", game.active_player)
 
 
@@ -540,7 +540,7 @@ def send(id, text):
 
 
 def callback_handler(update: Update, context: CallbackContext):
-    print("preflop handler")
+    print("callback handler")
     global player_pool, chat_id, game
 
     query = update.callback_query.data
@@ -549,13 +549,16 @@ def callback_handler(update: Update, context: CallbackContext):
     player_name = update.callback_query.from_user.name
     chat_id = update.callback_query.message.chat_id
 
-    if "100BB" in query or "200BB" in query:
+    if "100BB" in query or "200BB" in query or "300BB" in query:
         if len(player_pool) < MAX_PLAYER:
             player_cash = 0
             if "100BB" in query:
                 player_cash = game.bb * 100
             if "200BB" in query:
                 player_cash = game.bb * 200
+            if "300BB" in query:
+                player_cash = game.bb * 300
+
             player_pos = len(player_pool) + 1
             player_pool[player_pos] = player(player_id, player_name, player_cash)
             # for _ in range(2):
@@ -599,6 +602,12 @@ def callback_handler(update: Update, context: CallbackContext):
                     InlineKeyboardButton("3BB", callback_data="3BB"),
                     InlineKeyboardButton("5BB", callback_data="5BB"),
                 ],
+                [
+                    InlineKeyboardButton(
+                        f"All in: {player_pool[cur_option_pos].cash}",
+                        callback_data="allin",
+                    )
+                ],
             ]
             kb_bet = [
                 [
@@ -606,6 +615,7 @@ def callback_handler(update: Update, context: CallbackContext):
                     InlineKeyboardButton(f"{game.pot*0.5}", callback_data="50P"),
                     InlineKeyboardButton(f"{game.pot*0.75}", callback_data="75P"),
                     InlineKeyboardButton(f"{game.pot}", callback_data="100P"),
+                    InlineKeyboardButton(f"{game.pot*1.5}", callback_data="150P"),
                 ],
                 [
                     InlineKeyboardButton(
@@ -626,7 +636,9 @@ def callback_handler(update: Update, context: CallbackContext):
             # return None
         if "Fold" in query:
             opt = "Fold"
-            fold(update, context)
+            # fold(update, context)
+            game.active_player[cur_option_pos - 1] = None
+            print(f"FOlD  {game.active_player}  cur pos: {cur_option_pos}")
 
         update.callback_query.edit_message_text(
             f"Seat {cur_option_pos}: {player_pool[cur_option_pos].name} {opt} CASH:{player_pool[cur_option_pos].cash}\nPOT: {game.pot}"
@@ -683,6 +695,8 @@ def bet_handler(update: Update, context: CallbackContext):
             bet = game.pot * 0.75
         case "100P":
             bet = game.pot
+        case "150P":
+            bet = game.pot * 1.5
         case "allin":
             bet = player_pool[cur_option_pos].cash + player_pool[cur_option_pos].cur_bet
 
@@ -701,6 +715,7 @@ def bet_handler(update: Update, context: CallbackContext):
     player_pool[cur_option_pos].cash -= bet
     player_pool[cur_option_pos].cur_bet += bet
     reactive_player()
+    game.active_player[cur_option_pos - 1] = True
 
     update.callback_query.edit_message_text(
         f"seat {cur_option_pos}: {player_pool[cur_option_pos].name} BET: {bet} CASH:{player_pool[cur_option_pos].cash}\nPOT: {game.pot}"
@@ -727,8 +742,13 @@ dp.add_handler(
 )
 
 dp.add_handler(CommandHandler("pre", pre_flop))
-# dp.add_handler(CommandHandler("join", join))
-# dp.add_handler(CommandHandler("option", option))
+
+dp.add_handler(CommandHandler("join", join))
+dp.add_handler(CommandHandler("option", option))
+dp.add_handler(CommandHandler("flop", flop))
+dp.add_handler(CommandHandler("turn", turn))
+dp.add_handler(CommandHandler("river", river))
+
 dp.add_error_handler(error)
 updater.start_polling()
 updater.idle()
