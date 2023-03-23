@@ -218,6 +218,10 @@ def pre_flop(update: Update, context: CallbackContext):
             v.card = []
             v.formated_card = None
             v.score = 0
+            if v.cash == 0:  # boomed
+                print(v.name, "boomed!!!")
+                v.active = False
+                game.active_player[k - 1] = None
 
     game.pre_flop_stage = True
 
@@ -226,20 +230,26 @@ def pre_flop(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=chat_id, text=f"Pre Flop")
 
     for i in range(1, len(player_pool) + 1):
+        if player_pool[i].cash == 0:
+            continue
         for _ in range(2):
             player_pool[i].card.append(game.player_hand())
         print(f"{player_pool[i]} id", player_pool[i].id)
         send(player_pool[i].id, str(player_pool[i].card))
 
-    def _next(but, len=len(player_pool)):
-        return but % len if but > len else but
+    def _next(pos, len=len(player_pool)):
+        if pos > len:
+            pos %= len
+        if player_pool[pos].active == False:
+            return _next(pos + 1)
+        return pos
 
     print("player_pool", player_pool)
     print("sb_pos", sb_pos)
     print("bb_pos", bb_pos)
 
     sb_pos = _next((game.cur_button + 1))
-    bb_pos = _next((game.cur_button + 2))
+    bb_pos = _next((sb_pos + 1))
 
     player_pool[sb_pos].cash -= game.sb
     player_pool[sb_pos].cur_bet = game.sb
@@ -332,9 +342,28 @@ def option(update: Update, context: CallbackContext):
             InlineKeyboardButton("Fold", callback_data="Fold"),
         ],
     ]
+    check_option_kb = [
+        [
+            InlineKeyboardButton("Check", callback_data="Check"),
+        ],
+    ]
+    call_fold_option_kb = [
+        [
+            InlineKeyboardButton("Call", callback_data="Call"),
+            InlineKeyboardButton("Fold", callback_data="Fold"),
+        ],
+    ]
 
-    if player_pool[cur_option_pos].cur_bet == game.cur_max_bet:
+    print("cash: ", player_pool[cur_option_pos].cash)
+    if player_pool[cur_option_pos].cash == 0:
+        kb_setting = check_option_kb
+    elif (
+        player_pool[cur_option_pos].cur_bet == game.cur_max_bet
+        and game.cur_max_bet != 0
+    ):
         kb_setting = no_call_option_kb
+    elif player_pool[cur_option_pos].cash < game.cur_max_bet:
+        kb_setting = call_fold_option_kb
     elif player_pool[cur_option_pos].cur_bet < game.cur_max_bet:
         kb_setting = no_check_option_kb
     else:
@@ -355,13 +384,13 @@ def option(update: Update, context: CallbackContext):
             while game.active_player[cur_option_pos - 1] == None:
                 next_pos()
             tocall = (
-                f" To Call: {game.cur_max_bet}"
+                f" To Call: {round(game.cur_max_bet,2)}"
                 if game.cur_max_bet > player_pool[cur_option_pos].cur_bet
                 else ""
             )
             context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Seat {cur_option_pos} {player_pool[cur_option_pos].name} Cash: {player_pool[cur_option_pos].cash} Cur Bet: {player_pool[cur_option_pos].cur_bet}\nPot: {game.pot}{tocall}",
+                text=f"Seat {cur_option_pos} {player_pool[cur_option_pos].name} Cash: {round(player_pool[cur_option_pos].cash,2)} Cur Bet: {round(player_pool[cur_option_pos].cur_bet,2)}\nPot: {round(game.pot,2)}{tocall}",
                 reply_markup=markup,
             )
             print("option sent")
@@ -391,18 +420,28 @@ def call():
 
     # raised before
     if player_pool[cur_option_pos].cash > 0:
-        temp = player_pool[cur_option_pos].cur_bet
-        bet = game.cur_max_bet - temp  # last turn bet
+        temp = player_pool[cur_option_pos].cur_bet  # last turn bet
+        bet = game.cur_max_bet - temp  # how much need to add
 
+        if player_pool[cur_option_pos].cash <= bet:  # not enough money
+            bet = player_pool[cur_option_pos].cash
+            player_pool[cur_option_pos].cur_bet = bet
+
+        else:
+            player_pool[cur_option_pos].cur_bet = game.cur_max_bet
         player_pool[cur_option_pos].cash -= bet
-        player_pool[cur_option_pos].cur_bet = game.cur_max_bet
         game.pot += bet
 
     else:
-        player_pool[cur_option_pos].cash -= game.cur_max_bet
-        player_pool[cur_option_pos].cur_bet = game.cur_max_bet
-
-        game.pot += game.cur_max_bet
+        if player_pool[cur_option_pos].cash <= bet:  # not enough money
+            bet = player_pool[cur_option_pos].cash
+            player_pool[cur_option_pos].cur_bet = bet
+            player_pool[cur_option_pos].cash -= bet  # should be 0
+            game.pot += bet
+        else:
+            player_pool[cur_option_pos].cash -= game.cur_max_bet
+            player_pool[cur_option_pos].cur_bet = game.cur_max_bet
+            game.pot += game.cur_max_bet
 
     print(
         player_pool[cur_option_pos].cash,
@@ -473,7 +512,7 @@ def check_winner(update: Update, context: CallbackContext) -> bool:
             player_pool[i].cash += prize
             context.bot.send_message(
                 chat_id=chat_id,
-                text=f"{player_pool[i].name} Won ${prize} Cash: {player_pool[i].cash}\nNext Game: /pre",
+                text=f"{player_pool[i].name} Won ${round(prize,2)} Cash: {round(player_pool[i].cash,2)}\nNext Game: /pre",
             )
 
         game.pot = 0
@@ -501,7 +540,7 @@ def player_list() -> str:
     temp = "when ready   /pre" if game.flop_stage == False else ""
     st = f"Player List:{min_max}\n"
     for i in range(1, len(player_pool) + 1):
-        st += f"Seat {i}: {player_pool[i].name} Cash: {player_pool[i].cash}\n"
+        st += f"Seat {i}: {player_pool[i].name} Cash: {round(player_pool[i].cash,2)}\n"
     st += temp
     return st
 
@@ -611,15 +650,23 @@ def callback_handler(update: Update, context: CallbackContext):
             ]
             kb_bet = [
                 [
-                    InlineKeyboardButton(f"{game.pot*0.33}", callback_data="33P"),
-                    InlineKeyboardButton(f"{game.pot*0.5}", callback_data="50P"),
-                    InlineKeyboardButton(f"{game.pot*0.75}", callback_data="75P"),
-                    InlineKeyboardButton(f"{game.pot}", callback_data="100P"),
-                    InlineKeyboardButton(f"{game.pot*1.5}", callback_data="150P"),
+                    InlineKeyboardButton(
+                        f"{round(game.pot*0.5,2)}", callback_data="50P"
+                    ),
+                    InlineKeyboardButton(
+                        f"{round(game.pot*0.33,2)}", callback_data="33P"
+                    ),
+                    InlineKeyboardButton(
+                        f"{round(game.pot*0.75,2)}", callback_data="75P"
+                    ),
+                    InlineKeyboardButton(f"{round(game.pot,2)}", callback_data="100P"),
+                    InlineKeyboardButton(
+                        f"{round(game.pot*1.5,2)}", callback_data="150P"
+                    ),
                 ],
                 [
                     InlineKeyboardButton(
-                        f"All in: {player_pool[cur_option_pos].cash}",
+                        f"All in: {round(player_pool[cur_option_pos].cash,2)}",
                         callback_data="allin",
                     )
                 ],
@@ -641,7 +688,7 @@ def callback_handler(update: Update, context: CallbackContext):
             print(f"FOlD  {game.active_player}  cur pos: {cur_option_pos}")
 
         update.callback_query.edit_message_text(
-            f"Seat {cur_option_pos}: {player_pool[cur_option_pos].name} {opt} CASH:{player_pool[cur_option_pos].cash}\nPOT: {game.pot}"
+            f"Seat {cur_option_pos}: {player_pool[cur_option_pos].name} {opt} CASH:{round(player_pool[cur_option_pos].cash,2)}\nPOT: {round(game.pot,2)}"
         )
 
         next_pos()
@@ -718,7 +765,7 @@ def bet_handler(update: Update, context: CallbackContext):
     game.active_player[cur_option_pos - 1] = True
 
     update.callback_query.edit_message_text(
-        f"seat {cur_option_pos}: {player_pool[cur_option_pos].name} BET: {bet} CASH:{player_pool[cur_option_pos].cash}\nPOT: {game.pot}"
+        f"seat {cur_option_pos}: {player_pool[cur_option_pos].name} BET: {round(bet,2)} CASH:{round(player_pool[cur_option_pos].cash,2)}\nPOT: {round(game.pot,2)}"
     )
     next_pos()
     option(update, context)
@@ -748,6 +795,7 @@ dp.add_handler(CommandHandler("option", option))
 dp.add_handler(CommandHandler("flop", flop))
 dp.add_handler(CommandHandler("turn", turn))
 dp.add_handler(CommandHandler("river", river))
+dp.add_handler(CommandHandler("check_winner", check_winner))
 
 dp.add_error_handler(error)
 updater.start_polling()
